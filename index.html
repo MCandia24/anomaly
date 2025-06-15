@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Anomalías mapa de calor</title>
+  <!-- Leaflet CSS for mapping functionalities -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Bootstrap CSS for styling and responsiveness -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css" />
+  
+</head>
+<body>
+  <div class="header">
+    <h1 class="text-center">Dashboard de Detección de Anomalías</h1>
+    <p class="mb-0 text-center">Visualización mapa de calor</p>
+  </div>
+
+  <div class="dashboard-container">
+    <div class="map-container">
+      <div id="map"></div>
+      <div class="controls">
+        <div>
+          <label for="radius-control">Radio: <span id="radius-value">25</span></label>
+          <input type="range" id="radius-control" min="5" max="50" value="25">
+        </div>
+        <div>
+          <label for="opacity-control">Opacidad: <span id="opacity-value">0.7</span></label>
+          <input type="range" id="opacity-control" min="0.1" max="1" step="0.1" value="0.7">
+        </div>
+        <!-- Reintroducing the single date range control -->
+        <div>
+          <label for="date-control">Fecha: <span id="date-value">Todas</span></label>
+          <input type="range" id="date-control" min="0" max="0" value="0">
+        </div>
+        <button id="real-time-btn" class="btn btn-sm btn-primary mt-2">Activar tiempo real</button>
+      </div>
+    </div>
+    <div class="sidebar">
+      <div class="stats">
+        <div class="stat-card text-danger">
+          <h3 id="critical-count">0</h3>
+          <p>Críticas</p>
+        </div>
+        <div class="stat-card text-warning">
+          <h3 id="warning-count">0</h3>
+          <p>Advertencias</p>
+        </div>
+        <div class="stat-card text-success">
+          <h3 id="normal-count">0%</h3>
+          <p>Previsión</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Patrones Temporales</h3>
+        <div class="chart-container">
+          <canvas id="timeSeriesChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Distribución por Tipo</h3>
+        <div class="chart-container">
+          <canvas id="distributionChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Últimas Alertas</h3>
+        <div id="alert-list">
+          <!-- Las alertas se generarán dinámicamente -->
+        </div>
+        <button class="btn btn-primary mt-2 w-100">Ver todas las alertas</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <!-- Leaflet.heat plugin for heatmaps -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <!-- Bootstrap JS for interactive components -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/heatmaps.js"></script>
+</body>
+</html>

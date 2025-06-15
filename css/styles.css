@@ -1,0 +1,144 @@
+  body {
+      margin: 0;
+      font-family: 'Inter', sans-serif; /* Using Inter font for a modern look */
+    }
+    .header {
+      background: #0172e2;
+      color: white;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-bottom-left-radius: 10px; /* Rounded corners for the header */
+      border-bottom-right-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      height: calc(100vh - 72px); /* Adjust height based on header */
+      gap: 20px; /* Spacing between map and sidebar */
+      padding: 0 20px 20px 20px; /* Padding around the dashboard */
+    }
+    .map-container {
+      position: relative;
+      border-radius: 10px; /* Rounded corners for map container */
+      overflow: hidden; /* Ensures map content respects border-radius */
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    #map {
+      height: 100%;
+      width: 100%; /* Ensure map takes full width */
+    }
+    .sidebar {
+      padding: 20px;
+      background: #f8f9fa;
+      overflow-y: auto;
+      border-radius: 10px; /* Rounded corners for sidebar */
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .chart-container {
+      height: 200px;
+      position: relative;
+    }
+    .anomaly-alert {
+      border-left: 5px solid #dc3545;
+      padding: 10px;
+      margin: 10px 0;
+      background: #f8d7da;
+      border-radius: 5px; /* Rounded corners for alerts */
+    }
+    .warning {
+      border-left-color: #ffc107;
+      background: #fff3cd;
+    }
+    .resolved { /* This class is currently not used but kept for consistency */
+      border-left-color: #28a745;
+      background: #d4edda;
+    }
+    .controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 15px; /* Increased padding */
+      border-radius: 8px; /* More rounded corners */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      display: flex; /* Use flexbox for control layout */
+      flex-direction: column;
+      gap: 10px; /* Spacing between controls */
+    }
+    .controls div {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .controls label {
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #333;
+    }
+    .controls input[type="range"],
+    .controls input[type="date"] {
+      width: 100%;
+      border-radius: 5px; /* Rounded corners for inputs */
+      padding: 5px;
+      border: 1px solid #ddd;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .btn-primary {
+        background-color: #007bff;
+        border-color: #007bff;
+        border-radius: 5px; /* Rounded buttons */
+        transition: background-color 0.3s ease;
+    }
+    .btn-primary:hover {
+        background-color: #0056b3;
+        border-color: #0056b3;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 992px) {
+      .dashboard-container {
+        grid-template-columns: 1fr; /* Stack columns on smaller screens */
+        height: auto; /* Allow height to adjust */
+        padding: 10px;
+      }
+      .map-container {
+        height: 60vh; /* Give map a fixed height on mobile */
+      }
+      .sidebar {
+        padding: 10px;
+      }
+      .controls {
+        position: static; /* Make controls flow naturally */
+        margin-top: 10px;
+        box-shadow: none;
+        padding: 0;
+        background: none;
+        flex-direction: row; /* Controls in a row on smaller screens */
+        flex-wrap: wrap; /* Wrap controls if needed */
+        justify-content: center;
+      }
+      .controls div {
+        flex-grow: 1; /* Allow controls to grow */
+      }
+    }
