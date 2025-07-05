@@ -1,0 +1,280 @@
+
+  <script>
+// Variables globales para clima
+let weatherLayer;
+let isWeatherEnabled = true;
+let weatherMapType = 'clouds_new';
+let weatherOpacity = 0.5;
+const WEATHER_API_KEY = 'dc3be39b34fef3dce1e168e5ba83773a';
+
+// Función para obtener datos climáticos históricos
+async function fetchWeatherHistory(lat, lon, start, end) {
+  try {
+    // Construir URL con parámetros correctos
+    const url = new URL('https://history.openweathermap.org/data/2.5/history/city');
+    url.searchParams.append('lat', lat);
+    url.searchParams.append('lon', lon);
+    url.searchParams.append('type', 'hour');
+    url.searchParams.append('start', Math.floor(start / 1000)); // Convertir a segundos
+    url.searchParams.append('end', Math.floor(end / 1000));
+    url.searchParams.append('appid', WEATHER_API_KEY);
+    
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Error ${response.status}: ${errorData.message}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Weather history error:', error);
+    return null;
+  }
+}
+
+// Procesar datos climáticos
+function processWeatherData(weatherData) {
+  if (!weatherData || !weatherData.list) {
+    console.error('Datos climáticos no válidos:', weatherData);
+    return [];
+  }
+  
+  return weatherData.list.map(item => {
+    return {
+      time: new Date(item.dt * 1000), // Convertir segundos a milisegundos
+      temp: kelvinToCelsius(item.main.temp),
+      feels_like: kelvinToCelsius(item.main.feels_like),
+      humidity: item.main.humidity,
+      pressure: item.main.pressure,
+      weather: item.weather[0]?.main || 'Desconocido',
+      description: item.weather[0]?.description || '',
+      icon: getWeatherIcon(item.weather[0]?.icon, item.dt),
+      clouds: item.clouds?.all || 0,
+      wind_speed: item.wind?.speed || 0,
+      rain: item.rain ? (item.rain['1h'] || 0) : 0
+    };
+  });
+}
+
+// Convertir Kelvin a Celsius
+function kelvinToCelsius(k) {
+  return k ? parseFloat((k - 273.15).toFixed(1)) : null;
+}
+
+// Obtener URL del icono
+function getWeatherIcon(iconCode, timestamp) {
+  if (!iconCode) return '';
+  
+  const date = new Date(timestamp * 1000);
+  const hours = date.getHours();
+  const isDay = hours > 6 && hours < 20;
+  
+  let finalIcon = iconCode;
+  if (!iconCode.endsWith('n') && !iconCode.endsWith('d')) {
+    finalIcon += isDay ? 'd' : 'n';
+  }
+  
+  return `https://openweathermap.org/img/wn/${finalIcon}@2x.png`;
+}
+
+// Actualizar detalles climáticos en el panel lateral
+function updateWeatherDetails(weatherPoints) {
+  if (!weatherPoints || weatherPoints.length === 0) return;
+  
+  const latest = weatherPoints.reduce((latest, current) => 
+    current.time > latest.time ? current : latest
+  );
+  
+  document.getElementById('weather-condition').textContent = latest.weather;
+  document.getElementById('weather-temp').textContent = latest.temp;
+  document.getElementById('weather-feels').textContent = latest.feels_like;
+  document.getElementById('weather-humidity').textContent = latest.humidity;
+  document.getElementById('weather-wind').textContent = latest.wind_speed;
+  document.getElementById('weather-rain').textContent = latest.rain || '0';
+  
+  const iconEl = document.getElementById('weather-icon');
+  if (iconEl && latest.icon) {
+    iconEl.src = latest.icon;
+    iconEl.alt = latest.description;
+  }
+}
+
+// Actualizar gráficos con datos climáticos
+async function updateChartsWithWeather(anomalyData, weatherPoints) {
+  // ... (código existente para preparar datos de anomalías) ...
+  
+  // Agregar dataset de temperatura si hay datos climáticos
+  if (weatherPoints.length > 0) {
+    const tempData = Array(24).fill(0).map((_, hour) => {
+      const hourData = weatherPoints.filter(w => 
+        w.time.getHours() === hour
+      );
+      return hourData.length > 0 ? 
+        hourData.reduce((sum, w) => sum + w.temp, 0) / hourData.length : 0;
+    });
+    
+    window.timeChart.data.datasets.push({
+      label: 'Temperatura (°C)',
+      data: tempData,
+      borderColor: 'rgba(255, 165, 0, 1)',
+      backgroundColor: 'rgba(255, 165, 0, 0.1)',
+      yAxisID: 'y2',
+      fill: true,
+      tension: 0.3
+    });
+  }
+  
+  // Configurar ejes duales
+  window.timeChart.options.scales = {
+    x: { title: { display: true, text: 'Hora del día' } },
+    y: {
+      title: { display: true, text: 'Número de eventos' },
+      beginAtZero: true,
+      position: 'left'
+    },
+    y2: {
+      title: { display: true, text: 'Temperatura (°C)' },
+      position: 'right',
+      grid: { drawOnChartArea: false }
+    }
+  };
+  
+  window.timeChart.update();
+}
+
+// Función applyFilters modificada
+async function applyFilters() {
+  // ... (código existente para filtrar datos) ...
+  // Supongamos que tenemos filteredData con los datos de anomalías
+
+  // Obtener datos climáticos si hay anomalías
+  if (filteredData.length > 0) {
+    const timestamps = filteredData.map(d => d.timestamp.getTime());
+    const start = Math.min(...timestamps);
+    const end = Math.max(...timestamps);
+    
+    const avgLat = filteredData.reduce((sum, p) => sum + p.lat, 0) / filteredData.length;
+    const avgLon = filteredData.reduce((sum, p) => sum + p.lng, 0) / filteredData.length;
+    
+    const weatherResponse = await fetchWeatherHistory(avgLat, avgLon, start, end);
+    const weatherPoints = processWeatherData(weatherResponse);
+    
+    updateWeatherDetails(weatherPoints);
+    updateChartsWithWeather(filteredData, weatherPoints);
+  } else {
+    document.getElementById('weather-details').innerHTML = '<p>No hay datos climáticos disponibles</p>';
+  }
+
+  // ... (resto del código de applyFilters, como actualizar el heatmap, etc.) ...
+}
+
+// Implementación de retry
+async function fetchWithRetry(url, retries = 3) {
+  try {
+    return await fetch(url);
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(res => setTimeout(res, 1000 * (4 - retries)));
+      return fetchWithRetry(url, retries - 1);
+    }
+    throw err;
+  }
+}
+
+// Inicialización del dashboard
+async function initDashboard() {
+  // ... (inicialización del mapa, carga de datos, etc.) ...
+  await loadJSONData(); // Suponiendo que esta función carga los datos de anomalías
+  applyFilters(); // Aplicar filtros iniciales
+}
+
+document.addEventListener('DOMContentLoaded', initDashboard);
+
+async function applyFilters() {
+  // ... tu código existente para filtrar datos ...
+
+  // Obtener datos climáticos si hay anomalías
+  if (filteredData.length > 0) {
+    const timestamps = filteredData.map(d => d.timestamp.getTime());
+    const start = Math.min(...timestamps);
+    const end = Math.max(...timestamps);
+    
+    const avgLat = filteredData.reduce((sum, p) => sum + p.lat, 0) / filteredData.length;
+    const avgLon = filteredData.reduce((sum, p) => sum + p.lng, 0) / filteredData.length;
+    
+    const weatherResponse = await fetchWeatherHistory(avgLat, avgLon, start, end);
+    const weatherPoints = processWeatherData(weatherResponse);
+    
+    updateWeatherDetails(weatherPoints);
+    updateChartsWithWeather(filteredData, weatherPoints);
+  } else {
+    document.getElementById('weather-details').innerHTML = '<p>No hay datos climáticos disponibles</p>';
+  }
+
+  // ... resto de tu lógica existente ...
+}
+
+const weatherCache = {};
+
+async function fetchWeatherHistory(lat, lon, start, end) {
+  const cacheKey = `${lat.toFixed(4)}-${lon.toFixed(4)}-${start}-${end}`;
+  
+  if (weatherCache[cacheKey]) {
+    return weatherCache[cacheKey];
+  }
+  
+  // ... código de la API ...
+  
+  // Guardar en caché por 1 hora
+  weatherCache[cacheKey] = response;
+  setTimeout(() => delete weatherCache[cacheKey], 60 * 60 * 1000);
+  
+  return response;
+}
+</script>
+<div class="card">
+  <h3>Condiciones Climáticas</h3>
+  <div id="weather-details">
+    <div class="current-weather">
+      <img id="weather-icon" src="" alt="Icono del clima">
+      <div>
+        <h4 id="weather-condition">--</h4>
+        <p>Temp: <span id="weather-temp">--</span>°C</p>
+        <p>Sensación: <span id="weather-feels">--</span>°C</p>
+      </div>
+    </div>
+    <div class="weather-stats">
+      <p>Humedad: <span id="weather-humidity">--</span>%</p>
+      <p>Viento: <span id="weather-wind">--</span> m/s</p>
+      <p>Lluvia: <span id="weather-rain">--</span> mm</p>
+    </div>
+  </div>
+</div>
+<style>
+#weather-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.current-weather {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.current-weather img {
+  width: 60px;
+  height: 60px;
+}
+
+.weather-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 8px;
+}
+</style>
