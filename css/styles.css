@@ -114,9 +114,8 @@
         background-color: #0056b3;
         border-color: #0056b3;
     }
-
     /* Responsive adjustments */
-    @media (max-width: 992px) {
+    @media (max-width: 768px) {
       .dashboard-container {
         grid-template-columns: 1fr; /* Stack columns on smaller screens */
         height: auto; /* Allow height to adjust */

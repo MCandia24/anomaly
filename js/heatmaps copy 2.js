@@ -10,28 +10,19 @@
     // Global variables to store data and control state
     let allData = []; // Stores all loaded anomaly data
     let filteredData = []; // Stores data after applying filters (date, etc.)
+    let heatmapLayer;
     let realTimeInterval;
     let isRealTimeActive = false; // Flag to track real-time mode
     let timeAxis = []; // Array of unique sorted timestamps for the date slider
-    let heatLayer; // heatmap puro
-    let tooltipLayer; // capa de marcadores con tooltip
-    let anomalyTooltipLayer; // Capa para markers de tooltips
-    let heatmapAnomalousLayer;
-    let heatmapNormalLayer;
-
-    let hexagonLayer; // Capa para hexágonos H3
 
     // Get references to control elements
     const radiusControl = document.getElementById('radius-control');
     const opacityControl = document.getElementById('opacity-control');
     const dateControl = document.getElementById('date-control'); // Reference to the date range slider
-    //const realTimeBtn = document.getElementById('real-time-btn');
+    const realTimeBtn = document.getElementById('real-time-btn');
     const radiusValueSpan = document.getElementById('radius-value');
     const opacityValueSpan = document.getElementById('opacity-value');
     const dateValueSpan = document.getElementById('date-value'); // Span to display current date
-
-    const dateInput = document.getElementById('date-value');
-    const timeInput = document.getElementById('startTime');
 
     /**
      * Loads anomaly data from a JSON endpoint.
@@ -43,7 +34,7 @@
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
 
-        const MAX_POINTS = 10; // Maximum number of points to extract
+        const MAX_POINTS = 100000; // Maximum number of points to extract
         const anomalousRaw = data?.anomalous?.data ?? [];
         const anomalousTime = data?.anomalous?.time_index ?? [];
         const normalRaw = data?.non_anomalous?.data ?? [];
@@ -69,8 +60,7 @@
         }));
 
         allData = [...anomalous, ...normal]; // Combine all data
-      
-       
+        console.log(`Puntos procesados: ${allData.length} (${anomalous.length} anomalías, ${normal.length} normales)`);
 
       } catch (err) {
         console.error('Error al cargar payload.json, generando datos de respaldo:', err);
@@ -122,183 +112,60 @@
      * Main function to apply all active filters (date, radius, opacity) to the data.
      * Updates the heatmap, charts, and stats based on the filtered data.
      */
+    function applyFilters() {
+      let currentData = [...allData]; // Start with all data
 
+      // Apply date filter if real-time is not active and timeAxis has data
+      if (!isRealTimeActive && timeAxis.length > 0) {
+        const selectedIndex = parseInt(dateControl.value, 10);
+        if (selectedIndex < timeAxis.length - 1) {
+          // Filter data up to the selected timestamp
+          const cutoffDate = timeAxis[selectedIndex];
+          currentData = currentData.filter(anomaly => anomaly.timestamp <= cutoffDate);
+          dateValueSpan.textContent = cutoffDate.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+        } else {
+          // If slider is at max, show all data
+          dateValueSpan.textContent = 'Todas';
+        }
+      } else if (isRealTimeActive) {
+          dateValueSpan.textContent = 'Tiempo Real';
+      } else {
+          dateValueSpan.textContent = 'N/A'; // No data or no time axis
+      }
 
-function applyFilters() {
-  let currentData = [...allData];
-const selectedDate = dateInput.value;
-const selectedTime = timeInput.value;
+      filteredData = currentData; // Update the global filteredData
 
-  let filterTimestamp = null;
-if (selectedDate && selectedTime) {
-  filterTimestamp = new Date(`${selectedDate}T${selectedTime}`);
-} else if (selectedDate) {
-  filterTimestamp = new Date(`${selectedDate}T00:00`); // Si no hay hora, usar medianoche
-}
+      // Get radius and opacity values from controls
+      const radius = parseInt(radiusControl.value);
+      const opacity = parseFloat(opacityControl.value);
 
+      // Prepare data for heatmap
+      const heatData = filteredData.map(anomaly => [
+        anomaly.lat,
+        anomaly.lng,
+        anomaly.value
+      ]);
 
-if (filterTimestamp) {
-  currentData = currentData.filter(d => d.timestamp <= filterTimestamp);
-  dateValueSpan.textContent = filterTimestamp.toLocaleString('es-PE', {
-    dateStyle: 'short', timeStyle: 'short'
-  });
-} else {
-  dateValueSpan.textContent = 'Todas';
-}
+      // Remove previous heatmap layer if it exists
+      if (heatmapLayer) {
+        map.removeLayer(heatmapLayer);
+      }
 
-  filteredData = currentData;
+      // Add new heatmap layer
+      heatmapLayer = L.heatLayer(heatData, {
+        radius,
+        maxZoom: 18,
+        max: 10,
+        blur: 15,
+        gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
+        opacity
+      }).addTo(map);
 
-  const radius = parseInt(radiusControl.value);
-  const opacity = parseFloat(opacityControl.value);
-
-
-/*
-  // Eliminar capas anteriores
-  if (heatLayer) map.removeLayer(heatLayer);
-  if (tooltipLayer) map.removeLayer(tooltipLayer);
-
-  // Construir capa heatmap
-  
-  const heatData1 = filteredData.map(nomaly => [nomaly.lat, nomaly.lng, nomaly.v]);
-  heatLayer = L.heatLayer(heatData1, {
-    radius,
-    maxZoom: 18,
-    max: 10,
-    blur: 15,
-    gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-    opacity
-  }).addTo(map);
-/*
-  
-  const heatData = filteredData.map(anomaly => [anomaly.lat, anomaly.lng, anomaly.value]);
-  heatLayer = L.heatLayer(heatData, {
-    radius,
-    maxZoom: 18,
-    max: 10,
-    blur: 15,
-    gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-    opacity
-  }).addTo(map);
-
-  // Construir capa de tooltips solo para anomalías
-  tooltipLayer = L.layerGroup();
- filteredData.forEach(d => {
-  const marker = L.circleMarker([d.lat, d.lng], {
-    radius: d.level === 'info' ? 5 : 5,
-    color: d.level === 'critical' ? '#900' :
-           d.level === 'warning' ? 'orange' : 'green',
-    fillColor: d.level === 'critical' ? '#f00' :
-               d.level === 'warning' ? '#fc0' : '#0f0',
-    fillOpacity: 0.5,
-    
-    weight: 1
-  });
-
-  marker.bindTooltip(
-    `<strong>${d.message}</strong><br><strong>Lat:</strong> ${d.lat}<br><strong>Lng:</strong> ${d.lng}<br><strong>Nivel:</strong> ${d.level}`,
-    {
-      permanent: false,
-      direction: 'top',
-      offset: [0, -5],
-      opacity: 0.9
+      // Update all dashboard components with the new filtered data
+      updateStats(filteredData);
+      updateCharts(filteredData);
+      updateAlertList(filteredData);
     }
-  );
-
-  tooltipLayer.addLayer(marker);
- 
-});
-
-  tooltipLayer.addTo(map); */
-
-  //--------------------
-
-// Separar anomalías y normales
-
-  const anomalousData = filteredData
-    .filter(d => d.level === 'critical' || d.level === 'warning')
-    .map(d => [d.lat, d.lng, d.value]);
-
-  const normalData = filteredData
-    .filter(d => d.level === 'info')
-    .map(d => [d.lat, d.lng, d.value]);
-
-
-
-  // Luego sigues con crear las capas
- 
-
-// Primero la capa de normales (fondo)
-heatmapNormalLayer = L.heatLayer(normalData, {
-  radius,
-  maxZoom: 12,
-  max: 5,
-  blur: 8,
- // gradient: { 0.2: 'lightgreen', 0.4: 'lime', 0.7: 'green' },
- //gradient: { 0.4: 'lightgreen', 0.6: 'lime', 1.0: 'green' },
-//gradient: { 1: 'lightgreen', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-//gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'lightgreen', 1.0: 'green' },
-  // gradient: { 0.4: 'orange', 0.6: 'lime', 0.8: 'lightgreen', 1.0: 'green' },
-   gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
-  opacity: opacity  // más bajo aún
-}).addTo(map);
-
-
-
-// Luego capa de anomalías (por encima)
-heatmapAnomalousLayer = L.heatLayer(anomalousData, {
-  radius,
-  maxZoom: 16,
-  max: 10,
-  blur: 15,
-  //gradient: { 0.3: 'orange', 0.6: 'red', 1.0: '#8B0000' },
-  //gradient: { 0.4: 'orange', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-   gradient: { 0.8: 'red', 1.0: 'red' },
-   //   gradient: { 1.0: 'red' },
-  opacity: opacity // total
-}).addTo(map);
-
-
-if (anomalyTooltipLayer) {
-  map.removeLayer(anomalyTooltipLayer); // Quita los antiguos
-}
-anomalyTooltipLayer = L.layerGroup(); // Nueva capa vacía
-
-function jitter(value) {
-  return value + (Math.random() - 0.5) * 0.0003; // Ruido leve
-}
-
-filteredData
-  .filter(d => d.level === 'critical' || d.level === 'warning')
-  .forEach((d, i) => {
-    const lat = jitter(d.lat);
-    const lng = jitter(d.lng);
-
-    const marker = L.circleMarker([lat, lng], {
-      radius: 4,
-      color: 'blue',
-      fillColor: 'blue',
-      fillOpacity: 0.5,
-      weight: 1
-    });
-
-    marker.bindTooltip(`<strong>${d.message}</strong><br><strong>Lat:</strong> ${d.lat}<br><strong>Lng:</strong> ${d.lng}<br><strong>Nivel:</strong> ${d.level}`, {
-      permanent: false,
-      direction: 'top',
-      offset: [0, -5],
-      opacity: 0.9
-    });
-
-    anomalyTooltipLayer.addLayer(marker);
-  });
-
-
-anomalyTooltipLayer.addTo(map); // <-- Esto está bien
-//------------------------
-  // Actualizar estadísticas, gráficos y alertas
-  updateStats(filteredData);
-  updateCharts(filteredData);
-  updateAlertList(filteredData);
-}
 
     /**
      * Updates the statistics cards in the sidebar.
@@ -311,7 +178,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
       const normalPercentage = total > 0 ? Math.round((total - critical - warning) / total * 100) : 0;
 
       document.getElementById('critical-count').textContent = critical;
-      document.getElementById('warning-count').textContent = total;
+      document.getElementById('warning-count').textContent = warning;
       document.getElementById('normal-count').textContent = `${normalPercentage}%`;
     }
 
@@ -427,7 +294,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
       const sortedAnomalies = [...data]
         .sort((a, b) => b.timestamp - a.timestamp)
         .filter(a => a.level === 'critical' || a.level === 'warning')
-        .slice(0, 10); // Show only the 5 most recent
+        .slice(0, 5); // Show only the 5 most recent
 
       if (sortedAnomalies.length === 0) {
         alertList.innerHTML = '<p class="text-muted">No hay alertas recientes.</p>';
@@ -436,8 +303,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
           const alertDiv = document.createElement('div');
           alertDiv.className = `anomaly-alert ${anomaly.level === 'critical' ? '' : 'warning'}`;
           const formattedDate = anomaly.timestamp.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-         // alertDiv.innerHTML = `<strong>${anomaly.type}</strong>: ${anomaly.message} <br><small>${formattedDate}</small>`;
-          alertDiv.innerHTML = `<strong>${anomaly.type}</strong>: ${anomaly.message}`;
+          alertDiv.innerHTML = `<strong>${anomaly.type}</strong>: ${anomaly.message} <br><small>${formattedDate}</small>`;
           alertList.appendChild(alertDiv);
         });
       }
@@ -447,7 +313,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
      * Starts or stops the real-time data simulation.
      * When active, new anomalies are continuously added to allData.
      */
-    /*function toggleRealTime() {
+    function toggleRealTime() {
       if (isRealTimeActive) {
         clearInterval(realTimeInterval);
         realTimeInterval = null;
@@ -493,7 +359,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
         dateControl.disabled = true;
         applyFilters(); // Initial update for real-time mode
       }
-    }*/
+    }
 
     // 7. Event Listeners for Controls
     radiusControl.addEventListener('input', function(e) {
@@ -506,9 +372,9 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
       applyFilters();
     });
 
-    //dateControl.addEventListener('input', applyFilters); // Listen to changes on the range slider
+    dateControl.addEventListener('input', applyFilters); // Listen to changes on the range slider
 
-    //realTimeBtn.addEventListener('click', toggleRealTime);
+    realTimeBtn.addEventListener('click', toggleRealTime);
 
     // 8. Initialization - Load data when the script loads
     loadJSONData();
@@ -520,7 +386,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
      * @param {number} max - The maximum number of points to extract.
      * @returns {Array<[number, number]>} An array of [latitude, longitude] pairs.
      */
-    function extractPoints(raw, max = MAX_POINTS) {
+    function extractPoints(raw, max = 50000) {
       const out = [];
       const stack = Array.isArray(raw) ? [...raw] : [raw];
 

@@ -19,7 +19,9 @@
     let heatmapAnomalousLayer;
     let heatmapNormalLayer;
 
-    let hexagonLayer; // Capa para hexágonos H3
+let hexagonLayer;
+let h3Resolution = 9; // Resolución inicial H3
+let useHexView = false; // Controla si usamos vista hexagonal
 
     // Get references to control elements
     const radiusControl = document.getElementById('radius-control');
@@ -29,9 +31,6 @@
     const radiusValueSpan = document.getElementById('radius-value');
     const opacityValueSpan = document.getElementById('opacity-value');
     const dateValueSpan = document.getElementById('date-value'); // Span to display current date
-
-    const dateInput = document.getElementById('date-value');
-    const timeInput = document.getElementById('startTime');
 
     /**
      * Loads anomaly data from a JSON endpoint.
@@ -43,7 +42,7 @@
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
 
-        const MAX_POINTS = 10; // Maximum number of points to extract
+        const MAX_POINTS = 2000; // Maximum number of points to extract
         const anomalousRaw = data?.anomalous?.data ?? [];
         const anomalousTime = data?.anomalous?.time_index ?? [];
         const normalRaw = data?.non_anomalous?.data ?? [];
@@ -122,29 +121,104 @@
      * Main function to apply all active filters (date, radius, opacity) to the data.
      * Updates the heatmap, charts, and stats based on the filtered data.
      */
+  map.addLayer(hexagonLayer);
+map.addLayer(anomalyTooltipLayer);
 
-
+    function groupDataByH3(data, resolution) {
+  const hexagons = {};
+  
+  data.forEach(point => {
+    try {
+      // Convertir a H3
+      const hex = h3.geoToH3(point.lat, point.lng, resolution);
+      
+      if (!hexagons[hex]) {
+        // Obtener centro y límites del hexágono
+        const center = h3.cellToLatLng(hex);
+        const boundary = h3.cellToBoundary(hex);
+        
+        hexagons[hex] = {
+          hex,
+          boundary,
+          centroid: center,
+          count: 0,
+          value: 0,
+          points: [],
+          isAnomaly: false
+        };
+      }
+      
+      // Actualizar valores
+      hexagons[hex].count++;
+      hexagons[hex].value += point.value;
+      hexagons[hex].points.push(point);
+      
+      // Marcar como anomalía si tiene algún punto anómalo
+      if (point.level === 'critical' || point.level === 'warning') {
+        hexagons[hex].isAnomaly = true;
+      }
+      
+    } catch (error) {
+      console.error('Error procesando punto:', point, error);
+    }
+  });
+  
+  return Object.values(hexagons);
+}
+// 5. Función para dibujar hexágonos
+function drawHexagons(hexData) {
+  // Limpiar capa anterior
+  hexagonLayer.clearLayers();
+  
+  // Encontrar el valor máximo para normalizar
+  const maxValue = Math.max(...hexData.map(h => h.value), 1);
+  
+  hexData.forEach(hex => {
+    // Convertir límites a formato Leaflet
+    const latLngs = hex.boundary.map(coord => [coord[0], coord[1]]);
+    
+    // Determinar color basado en anomalía
+    const fillColor = hex.isAnomaly ? '#ff0000' : '#00ff00';
+    
+    // Crear polígono
+    const polygon = L.polygon(latLngs, {
+      fillColor: fillColor,
+      color: '#333',
+      weight: 1,
+      fillOpacity: Math.min(0.8, hex.value / maxValue * 0.8)
+    });
+    
+    // Tooltip con información
+    polygon.bindTooltip(`
+      <div style="min-width:150px">
+        <strong>Hex ID: ${hex.hex}</strong>
+        <p>Puntos: ${hex.count}</p>
+        <p>Valor total: ${hex.value.toFixed(2)}</p>
+        <p>Estado: ${hex.isAnomaly ? '<span style="color:red">Anomalía</span>' : 'Normal'}</p>
+      </div>
+    `);
+    
+    // Agregar a capa
+    polygon.addTo(hexagonLayer);
+  });
+}
 function applyFilters() {
   let currentData = [...allData];
-const selectedDate = dateInput.value;
-const selectedTime = timeInput.value;
 
-  let filterTimestamp = null;
-if (selectedDate && selectedTime) {
-  filterTimestamp = new Date(`${selectedDate}T${selectedTime}`);
-} else if (selectedDate) {
-  filterTimestamp = new Date(`${selectedDate}T00:00`); // Si no hay hora, usar medianoche
-}
-
-
-if (filterTimestamp) {
-  currentData = currentData.filter(d => d.timestamp <= filterTimestamp);
-  dateValueSpan.textContent = filterTimestamp.toLocaleString('es-PE', {
-    dateStyle: 'short', timeStyle: 'short'
-  });
-} else {
-  dateValueSpan.textContent = 'Todas';
-}
+  if (!isRealTimeActive && timeAxis.length > 0) {
+    const selectedIndex = parseInt(dateControl.value, 10);
+    if (selectedIndex < timeAxis.length - 1) {
+      const cutoffDate = timeAxis[selectedIndex];
+      currentData = currentData.filter(anomaly => anomaly.timestamp <= cutoffDate);
+      dateValueSpan.textContent = cutoffDate.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+    } else {
+      dateValueSpan.textContent = 'Todas';
+    }
+  } else if (isRealTimeActive) {
+    dateValueSpan.textContent = 'Tiempo Real';
+  } else {
+    dateValueSpan.textContent = 'N/A';
+  }
 
   filteredData = currentData;
 
@@ -152,6 +226,14 @@ if (filterTimestamp) {
   const opacity = parseFloat(opacityControl.value);
 
 
+  // Limpiar capas existentes
+  if (heatmapNormalLayer) map.removeLayer(heatmapNormalLayer);
+  if (heatmapAnomalousLayer) map.removeLayer(heatmapAnomalousLayer);
+  anomalyTooltipLayer.clearLayers();
+  hexagonLayer.clearLayers();
+  
+  // Obtener estado del toggle
+  useHexView = document.getElementById('hex-toggle').checked;
 /*
   // Eliminar capas anteriores
   if (heatLayer) map.removeLayer(heatLayer);
@@ -214,85 +296,63 @@ if (filterTimestamp) {
 
 // Separar anomalías y normales
 
-  const anomalousData = filteredData
-    .filter(d => d.level === 'critical' || d.level === 'warning')
-    .map(d => [d.lat, d.lng, d.value]);
+   if (useHexView) {
+    // MODO HEXAGONAL
+    const hexResolution = parseInt(document.getElementById('hex-resolution').value);
+    const hexData = groupDataByH3(filteredData, hexResolution);
+    
+    // Dibujar hexágonos
+    drawHexagons(hexData);
+    
+    // Agregar marcadores para anomalías
+    filteredData.filter(d => d.level === 'critical' || d.level === 'warning')
+      .forEach(d => {
+        const marker = L.circleMarker([d.lat, d.lng], {
+          radius: 6,
+          color: 'blue',
+          fillColor: 'blue',
+          fillOpacity: 0.7,
+          weight: 1
+        }).bindTooltip(`<strong>${d.message}</strong>`);
+        
+        marker.addTo(anomalyTooltipLayer);
+      });
+  } else {
+    // MODO HEATMAP TRADICIONAL (tu código existente)
+    const anomalousData = filteredData
+      .filter(d => d.level === 'critical' || d.level === 'warning')
+      .map(d => [d.lat, d.lng, d.value]);
 
-  const normalData = filteredData
-    .filter(d => d.level === 'info')
-    .map(d => [d.lat, d.lng, d.value]);
+    const normalData = filteredData
+      .filter(d => d.level === 'info')
+      .map(d => [d.lat, d.lng, d.value]);
 
+    heatmapNormalLayer = L.heatLayer(normalData, {
+      radius: parseInt(radiusControl.value),
+      gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'orange' },
+      opacity: parseFloat(opacityControl.value)
+    }).addTo(map);
 
+    heatmapAnomalousLayer = L.heatLayer(anomalousData, {
+      radius: parseInt(radiusControl.value),
+      gradient: { 1.0: 'red' },
+      opacity: parseFloat(opacityControl.value)
+    }).addTo(map);
 
-  // Luego sigues con crear las capas
- 
-
-// Primero la capa de normales (fondo)
-heatmapNormalLayer = L.heatLayer(normalData, {
-  radius,
-  maxZoom: 12,
-  max: 5,
-  blur: 8,
- // gradient: { 0.2: 'lightgreen', 0.4: 'lime', 0.7: 'green' },
- //gradient: { 0.4: 'lightgreen', 0.6: 'lime', 1.0: 'green' },
-//gradient: { 1: 'lightgreen', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-//gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'lightgreen', 1.0: 'green' },
-  // gradient: { 0.4: 'orange', 0.6: 'lime', 0.8: 'lightgreen', 1.0: 'green' },
-   gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
-  opacity: opacity  // más bajo aún
-}).addTo(map);
-
-
-
-// Luego capa de anomalías (por encima)
-heatmapAnomalousLayer = L.heatLayer(anomalousData, {
-  radius,
-  maxZoom: 16,
-  max: 10,
-  blur: 15,
-  //gradient: { 0.3: 'orange', 0.6: 'red', 1.0: '#8B0000' },
-  //gradient: { 0.4: 'orange', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-   gradient: { 0.8: 'red', 1.0: 'red' },
-   //   gradient: { 1.0: 'red' },
-  opacity: opacity // total
-}).addTo(map);
-
-
-if (anomalyTooltipLayer) {
-  map.removeLayer(anomalyTooltipLayer); // Quita los antiguos
-}
-anomalyTooltipLayer = L.layerGroup(); // Nueva capa vacía
-
-function jitter(value) {
-  return value + (Math.random() - 0.5) * 0.0003; // Ruido leve
-}
-
-filteredData
-  .filter(d => d.level === 'critical' || d.level === 'warning')
-  .forEach((d, i) => {
-    const lat = jitter(d.lat);
-    const lng = jitter(d.lng);
-
-    const marker = L.circleMarker([lat, lng], {
-      radius: 4,
-      color: 'blue',
-      fillColor: 'blue',
-      fillOpacity: 0.5,
-      weight: 1
-    });
-
-    marker.bindTooltip(`<strong>${d.message}</strong><br><strong>Lat:</strong> ${d.lat}<br><strong>Lng:</strong> ${d.lng}<br><strong>Nivel:</strong> ${d.level}`, {
-      permanent: false,
-      direction: 'top',
-      offset: [0, -5],
-      opacity: 0.9
-    });
-
-    anomalyTooltipLayer.addLayer(marker);
-  });
-
-
-anomalyTooltipLayer.addTo(map); // <-- Esto está bien
+    // Marcadores para anomalías
+    filteredData.filter(d => d.level === 'critical' || d.level === 'warning')
+      .forEach(d => {
+        const marker = L.circleMarker([d.lat, d.lng], {
+          radius: 4,
+          color: 'blue',
+          fillColor: 'blue',
+          fillOpacity: 0.5,
+          weight: 1
+        }).bindTooltip(`<strong>${d.message}</strong>`);
+        
+        marker.addTo(anomalyTooltipLayer);
+      });
+  }
 //------------------------
   // Actualizar estadísticas, gráficos y alertas
   updateStats(filteredData);
@@ -300,6 +360,28 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
   updateAlertList(filteredData);
 }
 
+// 7. Agregar event listeners para los nuevos controles
+document.addEventListener('DOMContentLoaded', function() {
+  const hexToggle = document.getElementById('hex-toggle');
+  const hexResolution = document.getElementById('hex-resolution');
+  
+  if (hexToggle) {
+    hexToggle.addEventListener('change', function() {
+      document.getElementById('hex-controls').style.display = 
+        this.checked ? 'block' : 'none';
+      applyFilters();
+    });
+  }
+  
+  if (hexResolution) {
+    hexResolution.addEventListener('input', function() {
+      document.getElementById('hex-resolution-value').textContent = this.value;
+      if (hexToggle.checked) applyFilters();
+    });
+  }
+  
+  // ... (otros event listeners existentes) ...
+});
     /**
      * Updates the statistics cards in the sidebar.
      * @param {Array} data - The data to use for calculating statistics.
@@ -311,7 +393,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
       const normalPercentage = total > 0 ? Math.round((total - critical - warning) / total * 100) : 0;
 
       document.getElementById('critical-count').textContent = critical;
-      document.getElementById('warning-count').textContent = total;
+      document.getElementById('warning-count').textContent = warning;
       document.getElementById('normal-count').textContent = `${normalPercentage}%`;
     }
 
@@ -506,7 +588,7 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
       applyFilters();
     });
 
-    //dateControl.addEventListener('input', applyFilters); // Listen to changes on the range slider
+    dateControl.addEventListener('input', applyFilters); // Listen to changes on the range slider
 
     //realTimeBtn.addEventListener('click', toggleRealTime);
 

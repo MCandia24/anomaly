@@ -4,9 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard de Anomalías mapa de calor</title>
+  
+   <script src="https://unpkg.com/h3-js"></script>
   <!-- Leaflet CSS for mapping functionalities -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
   <!-- Chart.js for data visualization -->
+
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Bootstrap CSS for styling and responsiveness -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -22,32 +26,62 @@
   <div class="dashboard-container">
     <div class="map-container">
       <div id="map"></div>
-      <div class="controls">
+      <div class="controls"><div>
+    <label for="">Fecha:</label>
+    <input type="date" name="fecha" id="date-value" required>
+    <input type="hidden" id="date-control" min="0" max="0" value="0">
+
+    <label for="startTime" class="form-label">Hora:</label>
+    <input type="time" class="form-control" id="startTime" name="start_time">
+
+
+  </div>
+
+
         <div>
-          <label for="radius-control">Radio: <span id="radius-value">25</span></label>
-          <input type="range" id="radius-control" min="5" max="50" value="25">
+         
+          <input type="hidden" id="radius-control" min="5" max="50" value="25">
         </div>
         <div>
-          <label for="opacity-control">Opacidad: <span id="opacity-value">0.7</span></label>
-          <input type="range" id="opacity-control" min="0.1" max="1" step="0.1" value="0.7">
+        
+          <input type="hidden" id="opacity-control" min="0.1" max="1" step="0.1" value="0.7">
         </div>
-        <!-- Reintroducing the single date range control -->
-        <div>
-          <label for="date-control">Fecha: <span id="date-value">Todas</span></label>
-          <input type="range" id="date-control" min="0" max="0" value="0">
-        </div>
-        <button id="real-time-btn" class="btn btn-sm btn-primary mt-2">Activar tiempo real</button>
+   
+  <div class="control-group">
+  <label for="hex-toggle">
+    <input type="checkbox" id="hex-toggle"> 
+    V. Hexagonal
+  </label>
+</div>
+
+<div id="hex-controls" style="display:none; margin-top:10px; background:#f8f9fa; padding:10px; border-radius:5px">
+  <div>
+    <label for="hex-resolution">Resolución: 
+      <span id="hex-resolution-value">9</span>
+    </label>
+    <input type="range" id="hex-resolution" min="7" max="12" value="9" class="form-range">
+    <small>7 = Hexágonos grandes | 12 = Hexágonos pequeños</small>
+  </div>
+</div>
+  
+ 
+    <label for="hex-resolution">Resolución H3: 
+      <span id="hex-resolution-value">9</span>
+    </label>
+    <input type="range" id="hex-resolution" min="7" max="12" value="9">
+    <small>7=Grande | 12=Pequeño</small>
+
       </div>
     </div>
     <div class="sidebar">
       <div class="stats">
         <div class="stat-card text-danger">
+          <p>Cantidad de Anomalías</p>
           <h3 id="critical-count">0</h3>
-          <p>Críticas</p>
         </div>
-        <div class="stat-card text-warning">
+        <div class="stat-card text-primary">
+        <p>Total de Viajes</p>
           <h3 id="warning-count">0</h3>
-          <p>Advertencias</p>
         </div>
         <div class="stat-card text-success">
           <h3 id="normal-count">0%</h3>
