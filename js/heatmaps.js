@@ -39,11 +39,11 @@
      */
     async function loadJSONData() {
       try {
-        const res = await fetch('http://127.0.0.1:8081/data/payload.json');
+        const res = await fetch('http://127.0.0.1:8001/api/uber-trips');
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
 
-        const MAX_POINTS = 10; // Maximum number of points to extract
+        const MAX_POINTS = 10000; // Maximum number of points to extract
         const anomalousRaw = data?.anomalous?.data ?? [];
         const anomalousTime = data?.anomalous?.time_index ?? [];
         const normalRaw = data?.non_anomalous?.data ?? [];
