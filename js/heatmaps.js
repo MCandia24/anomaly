@@ -1,6 +1,8 @@
-
+   // Crear mapa
+    const radius = 25;     // Tamaño del área de influencia de cada punto
+    const opacity = 0.6;   // Transparencia del heatmap
     // 1. Map Initialization
-    const map = L.map('map').setView([40.7128, -74.0060], 12); // Center on New York with zoom 12
+    const map = L.map('map').setView([40.7128, -74.0060], 11); // Center on New York with zoom 12
 
     // OpenStreetMap base layer
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -10,87 +12,88 @@
     // Global variables to store data and control state
     let allData = []; // Stores all loaded anomaly data
     let filteredData = []; // Stores data after applying filters (date, etc.)
-    let realTimeInterval;
-    let isRealTimeActive = false; // Flag to track real-time mode
     let timeAxis = []; // Array of unique sorted timestamps for the date slider
     let heatLayer; // heatmap puro
-    let tooltipLayer; // capa de marcadores con tooltip
     let anomalyTooltipLayer; // Capa para markers de tooltips
     let heatmapAnomalousLayer;
     let heatmapNormalLayer;
+    let dateInput, rangeHour, rangeHourValue;
+    document.addEventListener("DOMContentLoaded", () => {
+    dateInput = document.getElementById("date-value");
+    rangeHour = document.getElementById("range-hour");
+    rangeHourValue = document.getElementById("range-hour-value");
 
-    let hexagonLayer; // Capa para hexágonos H3
+  const defaultDate = "2014-04-01";
+  dateInput.value = defaultDate;
+  loadJSONData(defaultDate);
 
-    // Get references to control elements
-    const radiusControl = document.getElementById('radius-control');
-    const opacityControl = document.getElementById('opacity-control');
-    const dateControl = document.getElementById('date-control'); // Reference to the date range slider
-    //const realTimeBtn = document.getElementById('real-time-btn');
-    const radiusValueSpan = document.getElementById('radius-value');
-    const opacityValueSpan = document.getElementById('opacity-value');
-    const dateValueSpan = document.getElementById('date-value'); // Span to display current date
+  dateInput.addEventListener("change", () => {
+    loadJSONData(dateInput.value);
+  });
 
-    const dateInput = document.getElementById('date-value');
-    const timeInput = document.getElementById('startTime');
+  rangeHour.addEventListener("input", () => {
+    rangeHourValue.textContent = rangeHour.value;
+    applyFilters(); // aplicar filtro por hora
+  });
+});
 
-    /**
-     * Loads anomaly data from a JSON endpoint.
-     * If the fetch fails, it falls back to generating dummy data.
-     */
-    async function loadJSONData() {
-      try {
-        const res = await fetch('http://127.0.0.1:8001/api/uber-trips');
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const data = await res.json();
 
-        const MAX_POINTS = 10000; // Maximum number of points to extract
-        const anomalousRaw = data?.anomalous?.data ?? [];
-        const anomalousTime = data?.anomalous?.time_index ?? [];
-        const normalRaw = data?.non_anomalous?.data ?? [];
-        const normalTime = data?.non_anomalous?.time_index ?? [];
 
-        // Map raw data to structured anomaly objects
-        const anomalous = extractPoints(anomalousRaw, MAX_POINTS).map(([lat, lng], i) => ({
-          lat, lng,
-          value: 10, // Higher value for anomalies for heatmap intensity
-          type: 'Anomalía',
-          level: 'critical',
-          timestamp: new Date(anomalousTime[i % anomalousTime.length] ?? Date.now()),
-          message: `Anomalía detectada el ${anomalousTime[i % anomalousTime.length] ?? 'desconocido'}`
-        }));
+    async function loadJSONData(dateStr) {
+    //console.log("🚀 Ejecutando función loadJSONData()");
+    console.log("📅 Solicitando datos para la fecha:", dateStr);
+  try {
+    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/values', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_code: dateStr })
+    });
 
-        const normal = extractPoints(normalRaw, MAX_POINTS).map(([lat, lng], i) => ({
-          lat, lng,
-          value: 2, // Lower value for normal data
-          type: 'Normal',
-          level: 'info',
-          timestamp: new Date(normalTime[i % normalTime.length] ?? Date.now()),
-          message: `Dato normal detectado el ${normalTime[i % normalTime.length] ?? 'desconocido'}`
-        }));
-
-        allData = [...anomalous, ...normal]; // Combine all data
-      
-       
-
-      } catch (err) {
-        console.error('Error al cargar payload.json, generando datos de respaldo:', err);
-        allData = generateAnomalyData(); // Fallback to dummy data
-      } finally {
-        // Sort allData by timestamp to find min/max dates easily and populate timeAxis
-        allData.sort((a, b) => a.timestamp - b.timestamp);
-        // Create a time axis with unique sorted timestamps
-        timeAxis = [...new Set(
-          allData.map(a => a.timestamp.getTime())
-        )].sort((a, b) => a - b).map(t => new Date(t));
-
-        // Set initial range for the date slider
-        dateControl.max = timeAxis.length === 0 ? 0 : timeAxis.length - 1;
-        dateControl.value = timeAxis.length === 0 ? 0 : timeAxis.length - 1; // Default to "Todas" (all data)
-        dateValueSpan.textContent = 'Todas';
-
-        applyFilters(); // Apply initial filters
-      }
+    if (!response.ok) {
+      throw new Error('Error al obtener datos.');
     }
+
+    const apiData = await response.json();
+const anomalousRaw = apiData.result?.anomalous?.data ?? [];
+const anomalousTime = apiData.result?.anomalous?.time_index ?? [];
+const normalRaw = apiData.result?.non_anomalous?.data ?? [];
+const normalTime = apiData.result?.non_anomalous?.time_index ?? [];
+
+
+const anomalous = extractPoints(anomalousRaw).map(([lat, lng], i) => ({
+  lat, lng,
+  value: 10,
+  type: 'Anomalía',
+  level: 'critical',
+  timestamp: new Date(anomalousTime[i % anomalousTime.length] ?? Date.now()),
+  message: `Anomalía detectada el ${anomalousTime[i % anomalousTime.length] ?? 'desconocido'}`
+}));
+
+const normal = extractPoints(normalRaw).map(([lat, lng], i) => ({
+  lat, lng,
+  value: 2,
+  type: 'Normal',
+  level: 'info',
+  timestamp: new Date(normalTime[i % normalTime.length] ?? Date.now()),
+  message: `Dato normal detectado el ${normalTime[i % normalTime.length] ?? 'desconocido'}`
+}));
+
+
+    allData = [...anomalous, ...normal];
+    allData.sort((a, b) => a.timestamp - b.timestamp);
+      timeAxis = [...new Set(allData.map(a => a.timestamp.getTime()))]
+      .sort((a, b) => a - b)
+      .map(t => new Date(t));
+
+ //   console.log("📊 Datos recibidos:", apiData);
+ //   console.log("🔴 Anomalías:", anomalous.length, "🟢 Normales:", normal.length);
+  applyFilters();
+
+   } catch (error) {
+    console.error("❌ Error:", error);
+    
+  }
+}
 
     // Function to generate dummy data (as a fallback)
     function generateAnomalyData() {
@@ -125,92 +128,17 @@
 
 
 function applyFilters() {
-  let currentData = [...allData];
-const selectedDate = dateInput.value;
-const selectedTime = timeInput.value;
 
-  let filterTimestamp = null;
-if (selectedDate && selectedTime) {
-  filterTimestamp = new Date(`${selectedDate}T${selectedTime}`);
-} else if (selectedDate) {
-  filterTimestamp = new Date(`${selectedDate}T00:00`); // Si no hay hora, usar medianoche
-}
+   const selectedHour = parseInt(rangeHour.value);
+  if (selectedHour === 24) {
+    filteredData = [...allData]; // sin filtro
+  } else {
+    filteredData = allData.filter(d => d.timestamp.getHours() === selectedHour);
+  }
+  console.log("✅ Datos filtrados:", filteredData.length);
 
-
-if (filterTimestamp) {
-  currentData = currentData.filter(d => d.timestamp <= filterTimestamp);
-  dateValueSpan.textContent = filterTimestamp.toLocaleString('es-PE', {
-    dateStyle: 'short', timeStyle: 'short'
-  });
-} else {
-  dateValueSpan.textContent = 'Todas';
-}
-
-  filteredData = currentData;
-
-  const radius = parseInt(radiusControl.value);
-  const opacity = parseFloat(opacityControl.value);
-
-
-/*
-  // Eliminar capas anteriores
-  if (heatLayer) map.removeLayer(heatLayer);
-  if (tooltipLayer) map.removeLayer(tooltipLayer);
-
-  // Construir capa heatmap
-  
-  const heatData1 = filteredData.map(nomaly => [nomaly.lat, nomaly.lng, nomaly.v]);
-  heatLayer = L.heatLayer(heatData1, {
-    radius,
-    maxZoom: 18,
-    max: 10,
-    blur: 15,
-    gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-    opacity
-  }).addTo(map);
-/*
-  
-  const heatData = filteredData.map(anomaly => [anomaly.lat, anomaly.lng, anomaly.value]);
-  heatLayer = L.heatLayer(heatData, {
-    radius,
-    maxZoom: 18,
-    max: 10,
-    blur: 15,
-    gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-    opacity
-  }).addTo(map);
-
-  // Construir capa de tooltips solo para anomalías
-  tooltipLayer = L.layerGroup();
- filteredData.forEach(d => {
-  const marker = L.circleMarker([d.lat, d.lng], {
-    radius: d.level === 'info' ? 5 : 5,
-    color: d.level === 'critical' ? '#900' :
-           d.level === 'warning' ? 'orange' : 'green',
-    fillColor: d.level === 'critical' ? '#f00' :
-               d.level === 'warning' ? '#fc0' : '#0f0',
-    fillOpacity: 0.5,
-    
-    weight: 1
-  });
-
-  marker.bindTooltip(
-    `<strong>${d.message}</strong><br><strong>Lat:</strong> ${d.lat}<br><strong>Lng:</strong> ${d.lng}<br><strong>Nivel:</strong> ${d.level}`,
-    {
-      permanent: false,
-      direction: 'top',
-      offset: [0, -5],
-      opacity: 0.9
-    }
-  );
-
-  tooltipLayer.addLayer(marker);
  
-});
 
-  tooltipLayer.addTo(map); */
-
-  //--------------------
 
 // Separar anomalías y normales
 
@@ -230,15 +158,10 @@ if (filterTimestamp) {
 // Primero la capa de normales (fondo)
 heatmapNormalLayer = L.heatLayer(normalData, {
   radius,
-  maxZoom: 12,
-  max: 5,
+  maxZoom: 13,
+  max: 10,
   blur: 8,
- // gradient: { 0.2: 'lightgreen', 0.4: 'lime', 0.7: 'green' },
- //gradient: { 0.4: 'lightgreen', 0.6: 'lime', 1.0: 'green' },
-//gradient: { 1: 'lightgreen', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-//gradient: { 0.4: 'blue', 0.6: 'lime', 0.8: 'lightgreen', 1.0: 'green' },
-  // gradient: { 0.4: 'orange', 0.6: 'lime', 0.8: 'lightgreen', 1.0: 'green' },
-   gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
+  gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
   opacity: opacity  // más bajo aún
 }).addTo(map);
 
@@ -247,13 +170,13 @@ heatmapNormalLayer = L.heatLayer(normalData, {
 // Luego capa de anomalías (por encima)
 heatmapAnomalousLayer = L.heatLayer(anomalousData, {
   radius,
-  maxZoom: 16,
+  maxZoom: 13,
   max: 10,
-  blur: 15,
+  blur: 8,
   //gradient: { 0.3: 'orange', 0.6: 'red', 1.0: '#8B0000' },
-  //gradient: { 0.4: 'orange', 0.6: 'lime', 0.8: 'yellow', 1.0: 'red' },
-   gradient: { 0.8: 'red', 1.0: 'red' },
-   //   gradient: { 1.0: 'red' },
+  gradient: { 0.4: 'red', 0.6: 'red', 0.1: 'red' },
+   //gradient: { 0.8: 'red', 1.0: 'red' },
+  // gradient: { 1.0: 'red' },
   opacity: opacity // total
 }).addTo(map);
 
@@ -298,7 +221,9 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
   updateStats(filteredData);
   updateCharts(filteredData);
   updateAlertList(filteredData);
+ 
 }
+
 
     /**
      * Updates the statistics cards in the sidebar.
@@ -436,82 +361,14 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
           const alertDiv = document.createElement('div');
           alertDiv.className = `anomaly-alert ${anomaly.level === 'critical' ? '' : 'warning'}`;
           const formattedDate = anomaly.timestamp.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-         // alertDiv.innerHTML = `<strong>${anomaly.type}</strong>: ${anomaly.message} <br><small>${formattedDate}</small>`;
           alertDiv.innerHTML = `<strong>${anomaly.type}</strong>: ${anomaly.message}`;
           alertList.appendChild(alertDiv);
         });
       }
     }
 
-    /**
-     * Starts or stops the real-time data simulation.
-     * When active, new anomalies are continuously added to allData.
-     */
-    /*function toggleRealTime() {
-      if (isRealTimeActive) {
-        clearInterval(realTimeInterval);
-        realTimeInterval = null;
-        realTimeBtn.textContent = 'Activar tiempo real';
-        isRealTimeActive = false;
-        // Re-enable date control when real-time is off
-        dateControl.disabled = false;
-        applyFilters(); // Re-apply filters including date filter
-      } else {
-        realTimeInterval = setInterval(() => {
-          // Add a new anomaly (based on existing data for variety)
-          if (allData.length > 0) {
-            const randomAnomaly = allData[Math.floor(Math.random() * allData.length)];
-            const newAnomaly = {
-              lat: randomAnomaly.lat + (Math.random() * 0.01 - 0.005),
-              lng: randomAnomaly.lng + (Math.random() * 0.01 - 0.005),
-              value: Math.floor(Math.random() * 10) + 1,
-              type: randomAnomaly.type,
-              level: randomAnomaly.level,
-              timestamp: new Date(), // Current timestamp for real-time
-              message: `Evento en tiempo real: ${randomAnomaly.type} #${Math.floor(Math.random() * 1000)}`
-            };
-            allData.push(newAnomaly);
 
-            // Keep allData at a manageable size for performance, e.g., last 500 items
-            if (allData.length > 500) {
-                allData.sort((a, b) => a.timestamp - b.timestamp); // Keep sorted for min/max
-                allData = allData.slice(allData.length - 500);
-            }
-          }
-          // Rebuild timeAxis and reset dateControl for new real-time data
-          timeAxis = [...new Set(
-            allData.map(a => a.timestamp.getTime())
-          )].sort((a, b) => a - b).map(t => new Date(t));
-          dateControl.max = timeAxis.length === 0 ? 0 : timeAxis.length - 1;
-          dateControl.value = timeAxis.length === 0 ? 0 : timeAxis.length - 1; // Always show latest data
-          applyFilters(); // Re-apply filters to show new data
-        }, 3000); // Add a new anomaly every 3 seconds
-
-        realTimeBtn.textContent = 'Desactivar tiempo real';
-        isRealTimeActive = true;
-        // Disable date control when real-time is active
-        dateControl.disabled = true;
-        applyFilters(); // Initial update for real-time mode
-      }
-    }*/
-
-    // 7. Event Listeners for Controls
-    radiusControl.addEventListener('input', function(e) {
-      radiusValueSpan.textContent = e.target.value;
-      applyFilters();
-    });
-
-    opacityControl.addEventListener('input', function(e) {
-      opacityValueSpan.textContent = e.target.value;
-      applyFilters();
-    });
-
-    //dateControl.addEventListener('input', applyFilters); // Listen to changes on the range slider
-
-    //realTimeBtn.addEventListener('click', toggleRealTime);
-
-    // 8. Initialization - Load data when the script loads
-    loadJSONData();
+  //  loadJSONData(defaultDate);
 
     /**
      * Flattens any structure and returns up to `max` [lat,lng] pairs.
@@ -520,36 +377,30 @@ anomalyTooltipLayer.addTo(map); // <-- Esto está bien
      * @param {number} max - The maximum number of points to extract.
      * @returns {Array<[number, number]>} An array of [latitude, longitude] pairs.
      */
-    function extractPoints(raw, max = MAX_POINTS) {
-      const out = [];
-      const stack = Array.isArray(raw) ? [...raw] : [raw];
+function extractPoints(raw) {
+  const out = [];
+  const stack = Array.isArray(raw) ? [...raw] : [raw];
 
-      while (stack.length && out.length < max) {
-        const item = stack.pop();
+  while (stack.length) {
+    const item = stack.pop();
 
-        // Case 1: {lat, lng} object
-        if (item && typeof item === 'object' && !Array.isArray(item)) {
-          const { lat, lng } = item;
-          if (Number.isFinite(+lat) && Number.isFinite(+lng)) {
-            out.push([+lat, +lng]);
-          } else {
-            // Deep dive into properties of the containing object
-            Object.values(item).forEach(v => stack.push(v));
-          }
-          continue;
-        }
-
-        // Case 2: [lat, lng] pair
-        if (Array.isArray(item) && item.length === 2 &&
-          Number.isFinite(+item[0]) && Number.isFinite(+item[1])) {
-          out.push([+item[0], +item[1]]);
-          continue;
-        }
-
-        // Case 3: intermediate array -> keep descending
-        if (Array.isArray(item)) stack.push(...item);
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const { lat, lng } = item;
+      if (Number.isFinite(+lat) && Number.isFinite(+lng)) {
+        out.push([+lat, +lng]);
+      } else {
+        Object.values(item).forEach(v => stack.push(v));
       }
-
-      return out;
+      continue;
     }
- 
+
+    if (Array.isArray(item) && item.length === 2 &&
+        Number.isFinite(+item[0]) && Number.isFinite(+item[1])) {
+      out.push([+item[0], +item[1]]);
+    } else if (Array.isArray(item)) {
+      stack.push(...item);
+    }
+  }
+
+  return out;
+}
