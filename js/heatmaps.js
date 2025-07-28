@@ -255,23 +255,19 @@ result.forEach(event => {
      */
 
 function applyFilters() {
-   rangeHour = document.getElementById("range-hour");
+ rangeHour = document.getElementById("range-hour");
  rangeHourValue = document.getElementById("range-hour-value");
 
-  rangeHourValue.textContent = rangeHour.value === "24" ? "Todas" : `${rangeHour.value}`;
   const selectedHour = parseInt(rangeHour.value);
-  
-  if (selectedHour === 24) {
-    filteredData = [...allData]; // sin filtro
-  } else {
     filteredData = allData.filter(d => d.timestamp.getHours() === selectedHour);
-  }
- 
+    
+
+   
 
   // Limpia las capas previas si existen
   if (heatmapNormalLayer) {
     map.removeLayer(heatmapNormalLayer);
-    heatmapNormalLayer = null;
+    heatmapNormalLayer = filteredData;
   }
 
   if (heatmapAnomalousLayer) {
@@ -294,20 +290,21 @@ function applyFilters() {
     .map(d => [d.lat, d.lng, d.value]);
 
   // Agrega la nueva capa de normales (fondo)
+  
   heatmapNormalLayer = L.heatLayer(normalData, {
     radius,
-    maxZoom: 13,
-    max: 10,
+    maxZoom: 10,
+    max: 8,
     blur: 8,
-    gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
+    gradient: { 0.2: 'blue', 0.8: 'lime', 1.0: 'yellow' },
     opacity: opacity
   }).addTo(map);
 
   // Agrega la nueva capa de anomalías (por encima)
   heatmapAnomalousLayer = L.heatLayer(anomalousData, {
     radius,
-    maxZoom: 13,
-    max: 10,
+    maxZoom: 10,
+    max: 8,
     blur: 8,
     gradient: { 0.4: 'red', 0.6: 'red', 0.1: 'red' },
     opacity: opacity
@@ -346,6 +343,7 @@ function applyFilters() {
 
       anomalyTooltipLayer.addLayer(marker);
     });
+     
 
   anomalyTooltipLayer.addTo(map);
 }

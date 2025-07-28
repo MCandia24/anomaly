@@ -92,12 +92,12 @@
     <!-- Hora -->
  <div class="col-12 col-lg-2">
   <label for="range-hour" class="form-label mb-0 small">
-    Hora: <span id="range-hour-value">Todas</span>
+    Hora: <span id="range-hour-value">00</span>
   </label>
 </div>
 
 <div class="col-12 col-lg-2 tooltip-hover">
-  <input type="range" class="custom-range" id="range-hour" min="0" max="24" value="24">
+  <input type="range" class="custom-range" id="range-hour" min="0" max="23" value="0">
  <!-- <div class="tooltip-text">Filtro por hora del dia</div> -->
 </div>
 
@@ -120,10 +120,11 @@
   <div class="controls"><div>
 
 <div class="d-flex align-items-center gap-2">
-  <label class="form-check-label mb-3" for="weather-toggle"><input class="form-check-input me-2" type="checkbox" id="weather-toggle" checked>Mostrar Clima</label>
+  <label class="form-check-label mb-0" for="weather-toggle"><input class="form-check-input me-2" type="checkbox" id="weather-toggle" checked>Mostrar Clima</label>
 </div>
 
   <!-- Selector de Mapa -->
+   <!--
   <div class="d-flex align-items-center gap-2">
     <label for="map-type" class="mb-0">Tipo de Mapa:</label>
     <select id="map-type" class="form-select form-select-sm w-auto">
@@ -132,8 +133,8 @@
       <option value="temp_new">Temperatura</option>
       <option value="wind_new">Viento</option>
     </select>
-  </div>
-
+  </div> 
+-->
 </div>
 
 
