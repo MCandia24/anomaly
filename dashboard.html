@@ -10,10 +10,13 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
   <!-- Chart.js for data visualization -->
 
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Bootstrap CSS for styling and responsiveness -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!--<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"> -->
   <link rel="stylesheet" href="css/styles.css" />
       <!-- Bootstrap 5 CSS -->
     <!-- Font Awesome -->
@@ -30,8 +33,8 @@
 
 <!-- Logo a la izquierda (oculto en pantallas pequeñas) -->
 <a class="navbar-brand d-none d-lg-flex align-items-center" href="index.html">
-  <i class="fas fa-fire me-2"></i>
-  <span class="fw-bold fs-4">HeatMap</span>
+ <i class="fas fa-brain me-2"></i>
+ <span class="fw-bold">Taxi Anomaly Detector</span>
 </a>
 
 
@@ -87,14 +90,16 @@
 
 
     <!-- Hora -->
-    <div class="col-12 col-lg-2">
-       <label for="range-hour" class="form-label mb-0 small">Hora: <span id="range-hour-value">24</span>:00</label>
-    </div>
-      <div class="col-12 col-lg-2">
-      <input type="range" class="custom-range" id="range-hour" min="0" max="24" value="24">
-      <span id="range-hour-value">24</span>
+ <div class="col-12 col-lg-2">
+  <label for="range-hour" class="form-label mb-0 small">
+    Hora: <span id="range-hour-value">Todas</span>
+  </label>
+</div>
 
-    </div>
+<div class="col-12 col-lg-2 tooltip-hover">
+  <input type="range" class="custom-range" id="range-hour" min="0" max="24" value="24">
+ <!-- <div class="tooltip-text">Filtro por hora del dia</div> -->
+</div>
 
     
 
@@ -136,6 +141,28 @@
 </div>
 </div>
 </div>
+
+    <!--
+      <div class="card">
+         <div class="card-body">
+          <h3 class="card-title text-center fw-bold mb-0 gradient-title">Distribución por Tipo</h3>
+
+        <div class="chart-container">
+          <canvas id="distributionChart"></canvas>
+        </div></div>
+      </div> -->
+
+            <div class="card">
+                 <div class="card-body">
+          <h3 class="card-title text-center fw-bold mb-0 gradient-title">Últimas Alertas del Día</h3>
+        <div id="alert-list">
+          <!-- Las alertas se generarán dinámicamente -->
+        </div>
+      </div>
+    </div>
+
+
+
 </div>
 
 
@@ -143,67 +170,79 @@
 
   <div class="col-12 col-lg-5">
       <div class="sidebar">
-        <div class="card">
-           <div class="card-body">
-    <h3 class="card-title text-center fw-bold mb-4">KPI's</h3>
-                      
-      <div class="stats">
-        <div class="stat-card p-3 border rounded-3 bg-light-subtle text-danger">
-          <p class="mb-1 fw-semibold">Anomalías</p>
-          <h3 id="critical-count">0</h3>
-        </div>
-        <div class="stat-card p-3 border rounded-3 bg-light-subtle text-primary">
-        <p class="mb-1 fw-semibold">Viajes</p>
-          <h3 id="warning-count">0</h3>
-        </div>
-        <div class="stat-card p-3 border rounded-3 bg-light-subtle text-success">
-          <h3 id="normal-count">0%</h3>
-          <p class="mb-1 fw-semibold">Previsión</p>
+
+        <div class="card shadow-sm">
+  <div class="card-body">
+    <h3 class="card-title text-center fw-bold mb-4 gradient-title">
+      Indicadores Clave (KPI’s)
+    </h3>
+
+    <div class="row row-cols-1 row-cols-md-3 g-3 mb-3">
+      <div class="col">
+        <div class="p-3 rounded-3 bg-light text-center tooltip-hover shadow-sm h-100">
+          <p class="mb-1 fw-semibold fs-6 text-black-50">Anomalías</p>
+          <div class="tooltip-text">Cantidad de zonas o momentos con demanda fuera de lo habitual.</div>
+          <h3 id="anomalies" class="mb-0 fw-bold text-danger"></h3>
         </div>
       </div>
-            
-          </div>
-          
+      <div class="col">
+        <div class="p-3 rounded-3 bg-light text-center tooltip-hover shadow-sm h-100">
+          <p class="mb-1 fw-semibold fs-6 text-black-50">Viajes</p>
+          <div class="tooltip-text">Número total de viajes realizados en la fecha analizada.</div>
+          <h3 id="trips" class="mb-0 fw-bold "></h3>
         </div>
+      </div>
+      <div class="col">
+        <div class="p-3 rounded-3 bg-light text-center tooltip-hover shadow-sm h-100">
+          <p class="mb-1 fw-semibold fs-6 text-black-50">Hora Pico</p>
+          <div class="tooltip-text">Hora del día con mayor concentración de viajes registrados.</div>
+          <h3 id="rush_hour" class="mb-0 fw-bold"></h3>
+        </div>
+      </div>
+    </div>
 
+    <div class="row row-cols-1 row-cols-md-2 g-3">
+      <div class="col-md-8">
+        <div class="p-3 rounded-3 bg-light text-center tooltip-hover shadow-sm h-100">
+          <p class="mb-1 fw-semibold fs-6 text-black-50">Zona Top</p>
+             <div class="tooltip-text">Zona H3 con mayor concentración de anomalías ese día.</div>
+          <h3 id="hot_location" class="mb-0 fw-bold"></h3>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="p-3 rounded-3 bg-light text-center tooltip-hover shadow-sm h-100">
+          <p class="mb-1 fw-semibold fs-6 text-black-50">Variación</p>
+          <div class="tooltip-text">Porcentaje de incremento o caída en la demanda respecto a días anteriores.</div>
+          <h3 id="increased_demand_pct" class="mb-0 fw-bold"></h3>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-
-
-
-
+<div class="card mt-4">
+      <h3 class="card-title text-center fw-bold mb-0 gradient-title">
+       Indicadores - Últimos 7 Días
+    </h3>
+  <div class="card-body">
+    <div id="historyEventsContainer">
+      <p class="text-muted">Cargando eventos...</p>
+    </div>
+  </div>
+</div>
+    <!--
       <div class="card">
         <div class="card-body">
-          <h3 class="card-title text-center fw-bold mb-3">Horas Picos</h3>
+          <h3 class="card-title text-center fw-bold mb-0 gradient-title">Patron</h3>
         <div class="chart-container">
           <canvas id="timeSeriesChart"></canvas>
         </div>
       </div>
-      </div>
-
-      <div class="card">
-         <div class="card-body">
-          <h3 class="card-title text-center fw-bold mb-3">Zona Top</h3>
-
-        <div class="chart-container">
-          <canvas id="distributionChart"></canvas>
-        </div></div>
-      </div>
-
-      <div class="card">
-                 <div class="card-body">
-          <h3 class="card-title text-center fw-bold mb-3">Últimas Alertas</h3>
-        <div id="alert-list">
-          <!-- Las alertas se generarán dinámicamente -->
-        </div>
-                            <div class="col-md-12 text-center text-md-end mt-4 mt-md-0">
-                        <a href="heatmap-detail.html" class="btn btn-primary btn-lg px-4">
-                            <i class="fas fa-arrow-right me-2"></i>Ver todas las alertas
-                        </a>
-                    </div>
-      </div></div>
-    </div>
-  </div>
-  </div>
+      </div> -->
+   
+  
+ </div>
+  
 </div>
 
 
@@ -211,26 +250,28 @@
       <!-- Footer -->
     <footer class="py-5">
         <div class="container">
+          
             <div class="row">
                 <div class="col-lg-4 mb-4 mb-lg-0">
                     <h4 class="mb-4">
-                        <i class="fas fa-fire me-2"></i>HeatMap Pro
+                              <i class="fas fa-brain me-2"></i>
+                              <span class="fw-bold">Taxi Anomaly Detector</span>
                     </h4>
                     <p>Plataforma avanzada para visualización geográfica y detección de anomalías mediante mapas de calor.</p>
                     <div class="d-flex gap-3 mt-4">
                         <a href="#" class="text-white"><i class="fab fa-facebook-f fa-lg"></i></a>
                         <a href="#" class="text-white"><i class="fab fa-twitter fa-lg"></i></a>
                         <a href="#" class="text-white"><i class="fab fa-linkedin-in fa-lg"></i></a>
-                        <a href="#" class="text-white"><i class="fab fa-github fa-lg"></i></a>
+                        <a href="https://github.com/MCandia24/anomaly" class="text-white"><i class="fab fa-github fa-lg"></i></a>
                     </div>
                 </div>
                 <div class="col-lg-2 col-md-4 mb-4 mb-md-0">
                     <h5 class="mb-4">Enlaces</h5>
                     <ul class="list-unstyled">
                         <li class="mb-2"><a href="#" class="text-white text-decoration-none">Inicio</a></li>
-                        <li class="mb-2"><a href="#features" class="text-white text-decoration-none">Características</a></li>
-                        <li class="mb-2"><a href="#" class="text-white text-decoration-none">Precios</a></li>
-                        <li><a href="#contact" class="text-white text-decoration-none">Contacto</a></li>
+                        <li class="mb-2"><a href="index.html" class="text-white text-decoration-none">Características</a></li>
+                        <li class="mb-2"><a href="index.html" class="text-white text-decoration-none">Resumen </a></li>
+                        <li><a href="index.html" class="text-white text-decoration-none">Nuestro Equipo</a></li>
                     </ul>
                 </div>
                 <div class="col-lg-3 col-md-4 mb-4 mb-md-0">
@@ -245,7 +286,7 @@
                 <div class="col-lg-3 col-md-4">
                     <h5 class="mb-4">Contacto</h5>
                     <ul class="list-unstyled">
-                        <li class="mb-2"><i class="fas fa-envelope me-2"></i>info@heatmappro.com</li>
+                        <li class="mb-2"><i class="fas fa-envelope me-2"></i>info@anomalydetector.com</li>
                         <li class="mb-2"><i class="fas fa-phone me-2"></i>+51 987 347 383</li>
                         <li><i class="fas fa-map-marker-alt me-2"></i>Lima, Peru</li>
                     </ul>
@@ -254,7 +295,7 @@
             <hr class="mt-4 mb-4">
             <div class="row align-items-center">
                 <div class="col-md-6 text-center text-md-start">
-                    <p class="mb-0">© 2023 HeatMap. Todos los derechos reservados.</p>
+                    <p class="mb-0">© 2025  Taxi Anomaly Detector. Todos los derechos reservados.</p>
                 </div>
                 <div class="col-md-6 text-center text-md-end">
                     <ul class="list-inline mb-0">
@@ -266,6 +307,7 @@
             </div>
         </div>
     </footer>
+
 
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>

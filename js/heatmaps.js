@@ -18,30 +18,38 @@
     let heatmapAnomalousLayer;
     let heatmapNormalLayer;
     let dateInput, rangeHour, rangeHourValue;
-    document.addEventListener("DOMContentLoaded", () => {
-    dateInput = document.getElementById("date-value");
-    rangeHour = document.getElementById("range-hour");
-    rangeHourValue = document.getElementById("range-hour-value");
+document.addEventListener("DOMContentLoaded", () => {
+  dateInput = document.getElementById("date-value");
+  rangeHour = document.getElementById("range-hour");
+  rangeHourValue = document.getElementById("range-hour-value");
 
-  const defaultDate = "2014-04-01";
+  const defaultDate = "2014-04-15";
   dateInput.value = defaultDate;
-  loadJSONData(defaultDate);
+
+  const dateStr = new Date(defaultDate).toISOString().slice(0, 10);
+  loadJSONData(dateStr);
+  cargarIndicadores(dateStr);
+  cargarHistoryEvents(dateStr)
 
   dateInput.addEventListener("change", () => {
-    loadJSONData(dateInput.value);
+    const selectedDate = new Date(dateInput.value).toISOString().slice(0, 10);
+    loadJSONData(selectedDate);
+    cargarIndicadores(selectedDate);
+    cargarHistoryEvents(selectedDate);
   });
 
   rangeHour.addEventListener("input", () => {
     rangeHourValue.textContent = rangeHour.value;
-    applyFilters(); // aplicar filtro por hora
+    applyFilters();
   });
 });
 
 
 
+
     async function loadJSONData(dateStr) {
     //console.log("🚀 Ejecutando función loadJSONData()");
-    console.log("📅 Solicitando datos para la fecha:", dateStr);
+   // console.log("📅 Solicitando datos para la fecha:", dateStr);
   try {
     const response = await fetch('http://127.0.0.1:8001/api/uber-trips/values', {
       method: 'POST',
@@ -58,6 +66,7 @@ const anomalousRaw = apiData.result?.anomalous?.data ?? [];
 const anomalousTime = apiData.result?.anomalous?.time_index ?? [];
 const normalRaw = apiData.result?.non_anomalous?.data ?? [];
 const normalTime = apiData.result?.non_anomalous?.time_index ?? [];
+
 
 
 const anomalous = extractPoints(anomalousRaw).map(([lat, lng], i) => ({
@@ -79,69 +88,203 @@ const normal = extractPoints(normalRaw).map(([lat, lng], i) => ({
 }));
 
 
-    allData = [...anomalous, ...normal];
-    allData.sort((a, b) => a.timestamp - b.timestamp);
-      timeAxis = [...new Set(allData.map(a => a.timestamp.getTime()))]
-      .sort((a, b) => a - b)
-      .map(t => new Date(t));
+ allData = [...anomalous, ...normal];
+allData.sort((a, b) => a.timestamp - b.timestamp);
+filteredData = allData; // ✅ Ahora sí, después de llenar y ordenar allData
 
- //   console.log("📊 Datos recibidos:", apiData);
- //   console.log("🔴 Anomalías:", anomalous.length, "🟢 Normales:", normal.length);
-  applyFilters();
+timeAxis = [...new Set(allData.map(a => a.timestamp.getTime()))]
+  .sort((a, b) => a - b)
+  .map(t => new Date(t));
+
+
+//updateCharts(filteredData);
+updateAlertList(filteredData);
+applyFilters();
 
    } catch (error) {
     console.error("❌ Error:", error);
     
   }
 }
+function formatearFechaLocalLima(fechaStr) {
+  const [año, mes, dia] = fechaStr.split('-').map(Number);
+  // mes - 1 porque en JS los meses van de 0 a 11
+  const fecha = new Date(año, mes - 1, dia);
 
-    // Function to generate dummy data (as a fallback)
-    function generateAnomalyData() {
-      const anomalies = [];
-      const types = ['Intrusión', 'Error', 'Comportamiento', 'Acceso'];
-      const levels = ['critical', 'warning', 'info'];
+  const opciones = {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'America/Lima'
+  };
 
-      for (let i = 0; i < 50; i++) {
-        const lat = 40.7128 + (Math.random() * 0.1 - 0.05); // New York ±0.05 degrees
-        const lng = -74.0060 + (Math.random() * 0.01 - 0.005);
-        const value = Math.floor(Math.random() * 10) + 1;
-        const type = types[Math.floor(Math.random() * types.length)];
-        const level = levels[Math.floor(Math.random() * levels.length)];
+  const fechaFormateada = new Intl.DateTimeFormat('es-PE', opciones).format(fecha);
+  const fechaConDel = fechaFormateada.replace(/ de (\d{4})$/, ' del $1');
+  return fechaConDel.charAt(0).toUpperCase() + fechaConDel.slice(1);
+}
 
-        anomalies.push({
-          lat,
-          lng,
-          value,
-          type,
-          level,
-          timestamp: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000), // Random date within last 7 days
-          message: `${type} detectado en ubicación ${i + 1}`
-        });
-      }
-      return anomalies;
+async function cargarIndicadores(dateStr) {
+  if (!dateStr) {
+    console.warn('⚠️ Fecha no proporcionada a cargarIndicadores');
+    return;
+  }
+
+  try {
+    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/indicators', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ date_code: dateStr })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error('Error al obtener los indicadores');
     }
+
+    const data = await response.json();
+
+    const result = data.result;
+    if (!result) {
+      throw new Error('La respuesta no contiene el campo "result"');
+    }
+
+    // 👇 Mostrar indicadores
+    document.getElementById('trips').textContent = result.total_trips ?? 0;
+    document.getElementById('anomalies').textContent = result.total_anomalies ?? 0;
+    document.getElementById('hot_location').textContent = result.hot_location ?? '';
+    document.getElementById('rush_hour').textContent = (result.rush_hour ?? '-') + ':00';
+
+   
+
+    const rawValue = result.increased_demand_pct ?? 0;
+const porcentaje = rawValue.toLocaleString(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+}) + '%';
+
+const container = document.getElementById('increased_demand_pct');
+
+let icon = '';
+let colorClass = '';
+
+if (rawValue > 0) {
+  icon = '<i class="bi bi-arrow-up-short me-1"></i>';
+  colorClass = 'text-success';
+} else if (rawValue < 0) {
+  icon = '<i class="bi bi-arrow-down-short me-1"></i>';
+  colorClass = 'text-danger';
+} else {
+  icon = '<i class="bi bi-dash me-1"></i>';
+  colorClass = 'text-secondary';
+}
+
+// Usamos innerHTML para insertar HTML (ícono + valor con color)
+container.innerHTML = `${icon}<span class="${colorClass}">${porcentaje}</span>`;
+
+
+  } catch (error) {
+  }
+}
+
+async function cargarHistoryEvents(dateStr) {
+  if (!dateStr) {
+    console.warn('⚠️ Fecha no proporcionada a cargarIndicadores');
+    return;
+  }
+
+  try {
+    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/history_events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date_code: dateStr })
+    });
+
+  //  console.log("📤 Enviando a history_events:", JSON.stringify({ date_code: dateStr }));
+
+    if (!response.ok) {
+      const errorData = await response.json();
+   //   console.error('📥 Error del servidor:', errorData);
+      throw new Error('Error al obtener los indicadores');
+    }
+
+    const data = await response.json();
+    const result = data.result;
+
+
+    const container = document.getElementById('historyEventsContainer');
+    container.innerHTML = ''; // Limpiar contenido anterior
+
+    if (!result || !Array.isArray(result) || result.length === 0) {
+      container.innerHTML = '<p class="text-muted">No se encontraron eventos históricos para esta fecha.</p>';
+      return;
+    }
+
+result.forEach(event => {
+  const item = document.createElement('div');
+  item.className = 'anomaly-alert d-flex tooltip-hover justify-content-between align-items-center mb-2 p-3 rounded shadow-sm border border-light bg-white';
+
+  item.innerHTML = `
+   <div class="tooltip-text">Fecha en la que se detectaron anomalías en la demanda.</div>
+    <div>
+      <div class="fw-semibold text-dark"><i class="bi bi-calendar-event me-0 text-primary"></i> ${formatearFechaLocalLima(event.date) || 'Desconocida'}</div>
+      <small class="text-muted">Normal: <span class="text-success fw-bold">${event.total_normal ?? 0}</span></small> |
+      <small class="text-muted">Anomalías: <span class="text-danger fw-bold">${event.total_anomalies ?? 0}</span></small>
+    </div>
+    <div>
+      <i class="bi bi-arrow-right-circle text-secondary"></i>
+    </div>
+  `;
+
+  container.appendChild(item);
+});
+
+
+
+  } catch (error) {
+    console.error('Error al cargar indicadores:', error);
+  }
+}
+
 
     /**
      * Main function to apply all active filters (date, radius, opacity) to the data.
      * Updates the heatmap, charts, and stats based on the filtered data.
      */
 
-
 function applyFilters() {
+   rangeHour = document.getElementById("range-hour");
+ rangeHourValue = document.getElementById("range-hour-value");
 
-   const selectedHour = parseInt(rangeHour.value);
+  rangeHourValue.textContent = rangeHour.value === "24" ? "Todas" : `${rangeHour.value}`;
+  const selectedHour = parseInt(rangeHour.value);
+  
   if (selectedHour === 24) {
     filteredData = [...allData]; // sin filtro
   } else {
     filteredData = allData.filter(d => d.timestamp.getHours() === selectedHour);
   }
-  console.log("✅ Datos filtrados:", filteredData.length);
-
  
 
+  // Limpia las capas previas si existen
+  if (heatmapNormalLayer) {
+    map.removeLayer(heatmapNormalLayer);
+    heatmapNormalLayer = null;
+  }
 
-// Separar anomalías y normales
+  if (heatmapAnomalousLayer) {
+    map.removeLayer(heatmapAnomalousLayer);
+    heatmapAnomalousLayer = null;
+  }
 
+  if (anomalyTooltipLayer) {
+    map.removeLayer(anomalyTooltipLayer);
+    anomalyTooltipLayer = null;
+  }
+
+  // Separar anomalías y normales
   const anomalousData = filteredData
     .filter(d => d.level === 'critical' || d.level === 'warning')
     .map(d => [d.lat, d.lng, d.value]);
@@ -150,225 +293,118 @@ function applyFilters() {
     .filter(d => d.level === 'info')
     .map(d => [d.lat, d.lng, d.value]);
 
+  // Agrega la nueva capa de normales (fondo)
+  heatmapNormalLayer = L.heatLayer(normalData, {
+    radius,
+    maxZoom: 13,
+    max: 10,
+    blur: 8,
+    gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
+    opacity: opacity
+  }).addTo(map);
 
+  // Agrega la nueva capa de anomalías (por encima)
+  heatmapAnomalousLayer = L.heatLayer(anomalousData, {
+    radius,
+    maxZoom: 13,
+    max: 10,
+    blur: 8,
+    gradient: { 0.4: 'red', 0.6: 'red', 0.1: 'red' },
+    opacity: opacity
+  }).addTo(map);
 
-  // Luego sigues con crear las capas
- 
+  // Tooltips para anomalías
+  anomalyTooltipLayer = L.layerGroup();
 
-// Primero la capa de normales (fondo)
-heatmapNormalLayer = L.heatLayer(normalData, {
-  radius,
-  maxZoom: 13,
-  max: 10,
-  blur: 8,
-  gradient: { 0.4: 'blue', 0.6: 'lime', 1.0: 'yellow' },
-  opacity: opacity  // más bajo aún
-}).addTo(map);
+  function jitter(value) {
+    return value + (Math.random() - 0.5) * 0.0003; // Ruido leve
+  }
 
+  filteredData
+    .filter(d => d.level === 'critical' || d.level === 'warning')
+    .forEach((d) => {
+      const lat = jitter(d.lat);
+      const lng = jitter(d.lng);
 
+      const marker = L.circleMarker([lat, lng], {
+        radius: 4,
+        color: 'blue',
+        fillColor: 'blue',
+        fillOpacity: 0.5,
+        weight: 1
+      });
 
-// Luego capa de anomalías (por encima)
-heatmapAnomalousLayer = L.heatLayer(anomalousData, {
-  radius,
-  maxZoom: 13,
-  max: 10,
-  blur: 8,
-  //gradient: { 0.3: 'orange', 0.6: 'red', 1.0: '#8B0000' },
-  gradient: { 0.4: 'red', 0.6: 'red', 0.1: 'red' },
-   //gradient: { 0.8: 'red', 1.0: 'red' },
-  // gradient: { 1.0: 'red' },
-  opacity: opacity // total
-}).addTo(map);
+      marker.bindTooltip(
+        `<strong>${d.message}</strong><br><strong>Lat:</strong> ${d.lat}<br><strong>Lng:</strong> ${d.lng}<br><strong>Nivel:</strong> ${d.level}`,
+        {
+          permanent: false,
+          direction: 'top',
+          offset: [0, -5],
+          opacity: 0.9
+        }
+      );
 
-
-if (anomalyTooltipLayer) {
-  map.removeLayer(anomalyTooltipLayer); // Quita los antiguos
-}
-anomalyTooltipLayer = L.layerGroup(); // Nueva capa vacía
-
-function jitter(value) {
-  return value + (Math.random() - 0.5) * 0.0003; // Ruido leve
-}
-
-filteredData
-  .filter(d => d.level === 'critical' || d.level === 'warning')
-  .forEach((d, i) => {
-    const lat = jitter(d.lat);
-    const lng = jitter(d.lng);
-
-    const marker = L.circleMarker([lat, lng], {
-      radius: 4,
-      color: 'blue',
-      fillColor: 'blue',
-      fillOpacity: 0.5,
-      weight: 1
+      anomalyTooltipLayer.addLayer(marker);
     });
 
-    marker.bindTooltip(`<strong>${d.message}</strong><br><strong>Lat:</strong> ${d.lat}<br><strong>Lng:</strong> ${d.lng}<br><strong>Nivel:</strong> ${d.level}`, {
-      permanent: false,
-      direction: 'top',
-      offset: [0, -5],
-      opacity: 0.9
-    });
-
-    anomalyTooltipLayer.addLayer(marker);
-  });
-
-
-anomalyTooltipLayer.addTo(map); // <-- Esto está bien
-//------------------------
-  // Actualizar estadísticas, gráficos y alertas
-  updateStats(filteredData);
-  updateCharts(filteredData);
-  updateAlertList(filteredData);
- 
+  anomalyTooltipLayer.addTo(map);
 }
 
-
-    /**
-     * Updates the statistics cards in the sidebar.
-     * @param {Array} data - The data to use for calculating statistics.
-     */
-    function updateStats(data) {
-      const critical = data.filter(a => a.level === 'critical').length;
-      const warning = data.filter(a => a.level === 'warning').length;
-      const total = data.length;
-      const normalPercentage = total > 0 ? Math.round((total - critical - warning) / total * 100) : 0;
-
-      document.getElementById('critical-count').textContent = critical;
-      document.getElementById('warning-count').textContent = total;
-      document.getElementById('normal-count').textContent = `${normalPercentage}%`;
-    }
-
-    /**
-     * Updates the time series and distribution charts.
-     * @param {Array} data - The data to use for charting.
-     */
-    function updateCharts(data) {
-      // Group by hour of the day for the time series chart
-      const hours = {};
-      data.forEach(anomaly => {
-        const hour = anomaly.timestamp.getHours();
-        hours[hour] = hours[hour] || { normal: 0, anomalous: 0 };
-
-        if (anomaly.level === 'critical' || anomaly.level === 'warning') {
-          hours[hour].anomalous++;
-        } else {
-          hours[hour].normal++;
-        }
-      });
-
-      const timeLabels = Array.from({ length: 24 }, (_, i) => `${i}:00`);
-      const normalTimeData = timeLabels.map((_, i) => hours[i]?.normal || 0);
-      const anomalyTimeData = timeLabels.map((_, i) => hours[i]?.anomalous || 0);
-
-      // Time Series Chart
-      const timeCtx = document.getElementById('timeSeriesChart').getContext('2d');
-      if (window.timeChart) {
-        window.timeChart.destroy(); // Destroy previous chart instance
-      }
-
-      window.timeChart = new Chart(timeCtx, {
-        type: 'line',
-        data: {
-          labels: timeLabels,
-          datasets: [{
-            label: 'Eventos normales',
-            data: normalTimeData,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            tension: 0.1,
-            fill: false
-          }, {
-            label: 'Anomalías',
-            data: anomalyTimeData,
-            borderColor: 'rgba(255, 99, 132, 1)',
-            tension: 0.1,
-            fill: false
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: {
-              title: {
-                display: true,
-                text: 'Hora del día'
-              }
-            },
-            y: {
-              title: {
-                display: true,
-                text: 'Número de eventos'
-              },
-              beginAtZero: true
-            }
-          }
-        }
-      });
-
-      // Distribution Chart (anomalies vs. normal)
-      const typeCtx = document.getElementById('distributionChart').getContext('2d');
-      const anomalousCount = data.filter(a => a.level === 'critical' || a.level === 'warning').length;
-      const normalCount = data.length - anomalousCount;
-
-      if (window.typeChart) {
-        window.typeChart.destroy(); // Destroy previous chart instance
-      }
-
-      window.typeChart = new Chart(typeCtx, {
-        type: 'doughnut',
-        data: {
-          labels: ['Anomalías', 'Normales'],
-          datasets: [{
-            data: [anomalousCount, normalCount],
-            backgroundColor: [
-              '#dc3545', // Red for anomalies
-              '#28a745'  // Green for normal
-            ]
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: 'bottom' // Place legend at the bottom
-            }
-          }
-        }
-      });
-    }
 
     /**
      * Updates the list of recent alerts in the sidebar.
      * @param {Array} data - The data to use for alerts.
      */
-    function updateAlertList(data) {
-      const alertList = document.getElementById('alert-list');
-      alertList.innerHTML = '';
+function updateAlertList(data) {
+  const alertList = document.getElementById('alert-list');
+  alertList.innerHTML = '';
 
-      // Sort by timestamp (most recent first) and filter for critical/warning
-      const sortedAnomalies = [...data]
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .filter(a => a.level === 'critical' || a.level === 'warning')
-        .slice(0, 10); // Show only the 5 most recent
+  if (!Array.isArray(data)) {
+  //  console.warn("⚠️ updateAlertList: 'data' no es un arreglo:", data);
+    alertList.innerHTML = '<p class="text-muted">No hay datos de alertas.</p>';
+    return;
+  }
 
-      if (sortedAnomalies.length === 0) {
-        alertList.innerHTML = '<p class="text-muted">No hay alertas recientes.</p>';
-      } else {
-        sortedAnomalies.forEach(anomaly => {
-          const alertDiv = document.createElement('div');
-          alertDiv.className = `anomaly-alert ${anomaly.level === 'critical' ? '' : 'warning'}`;
-          const formattedDate = anomaly.timestamp.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-          alertDiv.innerHTML = `<strong>${anomaly.type}</strong>: ${anomaly.message}`;
-          alertList.appendChild(alertDiv);
-        });
-      }
-    }
+  // Filtrar y ordenar
+  const sortedAnomalies = [...data]
+    .filter(a => a.level === 'critical' || a.level === 'warning')
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    .slice(0, 10);
 
+  if (sortedAnomalies.length === 0) {
+    alertList.innerHTML = '<p class="text-muted">No hay alertas recientes.</p>';
+    return;
+  }
 
-  //  loadJSONData(defaultDate);
+  sortedAnomalies.forEach(anomaly => {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `anomaly-alert alert ${anomaly.level === 'critical' ? 'alert-danger' : 'alert-warning'} mb-2`;
+
+    const fecha = new Date(anomaly.timestamp);
+
+    const opciones = {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'America/Lima'
+    };
+
+    const fechaFormateada = new Intl.DateTimeFormat('es-PE', opciones).format(fecha);
+    const fechaConDel = fechaFormateada.replace(/ de (\d{4})/, ' del $1');
+
+    alertDiv.innerHTML = `
+      <strong class="alert-strong">${anomaly.type}</strong>: <small class="bi bi-calendar-event me-0 text-primary alert-small text-muted"> ${fechaConDel.charAt(0).toUpperCase() + fechaConDel.slice(1)}</small><br>
+     
+    `;
+
+    alertList.appendChild(alertDiv);
+  });
+}
+
 
     /**
      * Flattens any structure and returns up to `max` [lat,lng] pairs.

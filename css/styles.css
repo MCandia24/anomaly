@@ -34,7 +34,7 @@
 
     .sidebar {
       padding: 20px;
-      background: #f8f9fa;
+      background: white;
       overflow-y: auto;
       border-radius: 10px; /* Rounded corners for sidebar */
       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -57,9 +57,9 @@
     }
     .anomaly-alert {
       border-left: 5px solid #dc3545;
-      padding: 10px;
-      margin: 10px 0;
-      background: #f8d7da;
+      padding: 5px;
+      margin: 5px 0;
+      background: #fbedf2;
       border-radius: 5px; /* Rounded corners for alerts */
     }
     .warning {
@@ -233,4 +233,57 @@
   border: 2px solid #1a2980;
   border-radius: 50%;
   cursor: pointer;
+}
+
+.gradient-title {
+  background: linear-gradient(135deg, #1a2980, #26d0ce);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text; /* para compatibilidad */
+  text-emphasis-color: transparent;
+}
+
+.anomaly-alert:hover {
+  background-color: #f8f9fa;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+} 
+
+.alert-small {
+    font-size: 1.2em;
+}
+.alert-strong {
+    font-weight: bolder;
+    font-size: 1.3rem;
+}
+
+/* Tooltip */
+.tooltip-hover {
+  position: relative;
+  cursor: help;
+  /*display: inline-block;*/
+}
+
+.tooltip-hover .tooltip-text {
+  visibility: hidden;
+  background-color: var(--dark);
+  color: #fff;
+  text-align: center;
+  border-radius: 8px;
+  padding: 8px;
+  position: absolute;
+  z-index: 10;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -110px;
+  opacity: 0;
+  transition: opacity var(--transition-smooth);
+  width: 220px;
+  font-size: 0.85rem;
+  line-height: 1.2rem;
+}
+
+.tooltip-hover:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
 }
