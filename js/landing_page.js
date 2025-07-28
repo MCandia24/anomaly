@@ -1,6 +1,6 @@
 let tripss=0;
 
-
+ const API_BASE_URL = 'http://127.0.0.1:8001/api/';
 function formatearFechaLocalLima(fechaStr) {
   const [año, mes, dia] = fechaStr.split('-').map(Number);
   // mes - 1 porque en JS los meses van de 0 a 11
@@ -24,7 +24,7 @@ async function cargarIndicadores() {
   const fechaAleatoria = generarFechaAleatoria('2014-04'); // Cambia mes aquí
 
   try {
-    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/indicators', {
+    const response = await fetch(`${API_BASE_URL}uber-trips/indicators`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

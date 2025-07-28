@@ -10,6 +10,7 @@
     }).addTo(map);
 
     // Global variables to store data and control state
+    const API_BASE_URL = 'http://127.0.0.1:8001/api/';
     let allData = []; // Stores all loaded anomaly data
     let filteredData = []; // Stores data after applying filters (date, etc.)
     let timeAxis = []; // Array of unique sorted timestamps for the date slider
@@ -39,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   rangeHour.addEventListener("input", () => {
-    rangeHourValue.textContent = rangeHour.value;
+    rangeHourValue.textContent = rangeHour.value+':00';
     applyFilters();
   });
 });
@@ -51,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
     //console.log("🚀 Ejecutando función loadJSONData()");
    // console.log("📅 Solicitando datos para la fecha:", dateStr);
   try {
-    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/values', {
+    const response = await fetch(`${API_BASE_URL}uber-trips/values`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date_code: dateStr })
@@ -131,7 +132,7 @@ async function cargarIndicadores(dateStr) {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/indicators', {
+    const response = await fetch(`${API_BASE_URL}uber-trips/indicators`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -196,7 +197,7 @@ async function cargarHistoryEvents(dateStr) {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:8001/api/uber-trips/history_events', {
+    const response = await fetch(`${API_BASE_URL}uber-trips/history_events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date_code: dateStr })
@@ -256,7 +257,7 @@ result.forEach(event => {
 
 function applyFilters() {
  rangeHour = document.getElementById("range-hour");
- rangeHourValue = document.getElementById("range-hour-value");
+
 
   const selectedHour = parseInt(rangeHour.value);
     filteredData = allData.filter(d => d.timestamp.getHours() === selectedHour);
